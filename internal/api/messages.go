@@ -86,6 +86,10 @@ func (s *Server) handleSendMessage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "MISSING_FIELDS", "content is required")
 		return
 	}
+	if req.Role != "user" {
+		writeError(w, http.StatusBadRequest, "INVALID_ROLE", "only 'user' role is accepted")
+		return
+	}
 
 	conv, err := db.GetConversation(s.db, convID)
 	if err != nil {
@@ -165,7 +169,7 @@ func (s *Server) handleSendMessage(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	originalLen := len(llmMsgs)
-	results, err := s.orchestrator.Run(ctx, client, llmMsgs, toolNames, ag.Temperature, ag.MaxTokens)
+	results, fullMsgs, err := s.orchestrator.Run(ctx, client, llmMsgs, toolNames, ag.Temperature, ag.MaxTokens)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "LLM_ERROR", err.Error())
 		return
@@ -180,7 +184,21 @@ func (s *Server) handleSendMessage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	for _, llmMsg := range llmMsgs[originalLen:] {
+	toolCallNameBuild := make(map[string]string)
+	for _, llmMsg := range fullMsgs[originalLen:] {
+		if llmMsg.Role == "assistant" {
+			for _, tc := range llmMsg.ToolCalls {
+				if tc.Function != nil {
+					toolCallNameBuild[tc.ID] = tc.Function.Name
+				}
+			}
+		}
+	}
+	for k, v := range toolCallNameBuild {
+		toolCallName[k] = v
+	}
+
+	for _, llmMsg := range fullMsgs[originalLen:] {
 		dbMsg := model.Message{
 			ConversationID: convID,
 			Role:           llmMsg.Role,
@@ -194,10 +212,14 @@ func (s *Server) handleSendMessage(w http.ResponseWriter, r *http.Request) {
 			dbMsg.ToolCallID = llmMsg.ToolCallID
 			dbMsg.ToolName = toolCallName[llmMsg.ToolCallID]
 		}
-		db.InsertMessage(s.db, &dbMsg)
+		if _, err := db.InsertMessage(s.db, &dbMsg); err != nil {
+			log.Printf("insert message: %v", err)
+		}
 	}
 
-	db.TouchConversation(s.db, convID)
+	if err := db.TouchConversation(s.db, convID); err != nil {
+		log.Printf("touch conversation: %v", err)
+	}
 
 	if len(results) == 0 {
 		writeError(w, http.StatusBadGateway, "LLM_ERROR", "no results from LLM")
@@ -229,6 +251,10 @@ func (s *Server) handleStreamMessage(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Content == "" {
 		writeError(w, http.StatusBadRequest, "MISSING_FIELDS", "content is required")
+		return
+	}
+	if req.Role != "user" {
+		writeError(w, http.StatusBadRequest, "INVALID_ROLE", "only 'user' role is accepted")
 		return
 	}
 
@@ -319,32 +345,68 @@ func (s *Server) handleStreamMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	originalLen := len(llmMsgs)
+
 	eventCh := make(chan agent.StreamEvent)
+	resCh := make(chan struct {
+		msgs []llm.Message
+		err  error
+	}, 1)
+
 	go func() {
-		s.orchestrator.RunStream(ctx, client, llmMsgs, toolNames, ag.Temperature, ag.MaxTokens, eventCh)
+		msgs, err := s.orchestrator.RunStream(ctx, client, llmMsgs, toolNames, ag.Temperature, ag.MaxTokens, eventCh)
+		resCh <- struct {
+			msgs []llm.Message
+			err  error
+		}{msgs, err}
 	}()
 
-	var accumulatedContent string
 	for event := range eventCh {
 		data, _ := json.Marshal(event)
 		fmt.Fprintf(w, "data: %s\n\n", data)
 		flusher.Flush()
+	}
 
-		if event.Type == "content" {
-			accumulatedContent += event.Content
+	streamResult := <-resCh
+
+	if streamResult.err != nil {
+		writeError(w, http.StatusBadGateway, "LLM_ERROR", streamResult.err.Error())
+		return
+	}
+
+	toolCallName := make(map[string]string)
+	for _, llmMsg := range streamResult.msgs[originalLen:] {
+		if llmMsg.Role == "assistant" {
+			for _, tc := range llmMsg.ToolCalls {
+				if tc.Function != nil {
+					toolCallName[tc.ID] = tc.Function.Name
+				}
+			}
 		}
 	}
 
-	if accumulatedContent != "" {
-		assistantMsg := model.Message{
+	for _, llmMsg := range streamResult.msgs[originalLen:] {
+		dbMsg := model.Message{
 			ConversationID: convID,
-			Role:           "assistant",
-			Content:        accumulatedContent,
+			Role:           llmMsg.Role,
+			Content:        llmMsg.Content,
 		}
-		db.InsertMessage(s.db, &assistantMsg)
+		if llmMsg.Role == "assistant" && len(llmMsg.ToolCalls) > 0 {
+			tcJSON, _ := json.Marshal(llmMsg.ToolCalls)
+			dbMsg.Content = string(tcJSON)
+		}
+		if llmMsg.Role == "tool" {
+			dbMsg.ToolCallID = llmMsg.ToolCallID
+			dbMsg.ToolName = toolCallName[llmMsg.ToolCallID]
+		}
+		if _, err := db.InsertMessage(s.db, &dbMsg); err != nil {
+			log.Printf("insert message: %v", err)
+		}
 	}
 
-	db.TouchConversation(s.db, convID)
+	if err := db.TouchConversation(s.db, convID); err != nil {
+		log.Printf("touch conversation: %v", err)
+	}
 }
 
 func (s *Server) handleGetMessages(w http.ResponseWriter, r *http.Request) {

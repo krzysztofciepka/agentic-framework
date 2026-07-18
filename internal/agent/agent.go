@@ -33,24 +33,24 @@ func (o *Orchestrator) Run(
 	toolNames []string,
 	temperature float64,
 	maxTokens int,
-) ([]llm.Message, error) {
+) ([]llm.Message, []llm.Message, error) {
 	tools := o.resolveTools(toolNames)
 	results := make([]llm.Message, 0)
 
 	for range maxToolLoops {
 		choices, err := client.Chat(ctx, messages, tools, temperature, maxTokens)
 		if err != nil {
-			return nil, fmt.Errorf("chat: %w", err)
+			return nil, nil, fmt.Errorf("chat: %w", err)
 		}
 		if len(choices) == 0 {
-			return nil, fmt.Errorf("no choices returned")
+			return nil, nil, fmt.Errorf("no choices returned")
 		}
 
 		msg := choices[0].Message
 		results = append(results, msg)
 
 		if len(msg.ToolCalls) == 0 {
-			return results, nil
+			return results, messages, nil
 		}
 
 		messages = append(messages, msg)
@@ -64,7 +64,7 @@ func (o *Orchestrator) Run(
 		}
 	}
 
-	return nil, fmt.Errorf("max tool loops (%d) exceeded", maxToolLoops)
+	return nil, nil, fmt.Errorf("max tool loops (%d) exceeded", maxToolLoops)
 }
 
 func (o *Orchestrator) RunStream(
@@ -75,7 +75,7 @@ func (o *Orchestrator) RunStream(
 	temperature float64,
 	maxTokens int,
 	eventCh chan<- StreamEvent,
-) error {
+) ([]llm.Message, error) {
 	defer close(eventCh)
 	tools := o.resolveTools(toolNames)
 
@@ -122,8 +122,12 @@ func (o *Orchestrator) RunStream(
 		}
 
 		if len(toolCallAccum) == 0 {
+			messages = append(messages, llm.Message{
+				Role:    "assistant",
+				Content: fullContent,
+			})
 			eventCh <- StreamEvent{Type: "done"}
-			return nil
+			return messages, nil
 		}
 
 		toolCalls := make([]*llm.ToolCall, len(toolCallAccum))
@@ -146,7 +150,7 @@ func (o *Orchestrator) RunStream(
 	}
 
 	eventCh <- StreamEvent{Type: "error", Content: fmt.Sprintf("max tool loops (%d) exceeded", maxToolLoops)}
-	return nil
+	return messages, nil
 }
 
 func (o *Orchestrator) executeTool(ctx context.Context, name, argsJSON, callID string) llm.Message {
