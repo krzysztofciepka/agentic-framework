@@ -32,7 +32,13 @@ func GetAgentTools(db *sql.DB, agentID int64) ([]model.Tool, error) {
 }
 
 func InsertAgent(db *sql.DB, a *model.Agent) (int64, error) {
-	res, err := db.Exec(
+	tx, err := db.Begin()
+	if err != nil {
+		return 0, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	res, err := tx.Exec(
 		`INSERT INTO agents (name, system_prompt, provider_id, model, temperature, max_tokens)
 		 VALUES (?, ?, ?, ?, ?, ?)`,
 		a.Name, a.SystemPrompt, a.ProviderID, a.Model, a.Temperature, a.MaxTokens,
@@ -40,16 +46,23 @@ func InsertAgent(db *sql.DB, a *model.Agent) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("insert agent: %w", err)
 	}
-	id, _ := res.LastInsertId()
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("last insert id: %w", err)
+	}
 
 	for _, tool := range a.Tools {
-		_, err := db.Exec(
+		_, err := tx.Exec(
 			"INSERT OR IGNORE INTO agent_tools (agent_id, tool_id) VALUES (?, ?)",
 			id, tool.ID,
 		)
 		if err != nil {
 			return 0, fmt.Errorf("insert agent tool: %w", err)
 		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit transaction: %w", err)
 	}
 	return id, nil
 }
@@ -100,7 +113,13 @@ func GetAgent(db *sql.DB, id int64) (*model.Agent, error) {
 }
 
 func UpdateAgent(db *sql.DB, id int64, a *model.Agent) error {
-	_, err := db.Exec(
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec(
 		`UPDATE agents SET name = ?, system_prompt = ?, provider_id = ?, model = ?, temperature = ?, max_tokens = ?, updated_at = ?
 		 WHERE id = ?`,
 		a.Name, a.SystemPrompt, a.ProviderID, a.Model, a.Temperature, a.MaxTokens, time.Now(), id,
@@ -109,13 +128,13 @@ func UpdateAgent(db *sql.DB, id int64, a *model.Agent) error {
 		return fmt.Errorf("update agent: %w", err)
 	}
 
-	_, err = db.Exec("DELETE FROM agent_tools WHERE agent_id = ?", id)
+	_, err = tx.Exec("DELETE FROM agent_tools WHERE agent_id = ?", id)
 	if err != nil {
 		return fmt.Errorf("delete agent tools: %w", err)
 	}
 
 	for _, tool := range a.Tools {
-		_, err := db.Exec(
+		_, err := tx.Exec(
 			"INSERT OR IGNORE INTO agent_tools (agent_id, tool_id) VALUES (?, ?)",
 			id, tool.ID,
 		)
@@ -123,7 +142,8 @@ func UpdateAgent(db *sql.DB, id int64, a *model.Agent) error {
 			return fmt.Errorf("reinsert agent tool: %w", err)
 		}
 	}
-	return nil
+
+	return tx.Commit()
 }
 
 func DeleteAgent(db *sql.DB, id int64) error {

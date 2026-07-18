@@ -243,9 +243,12 @@ func TestSettings(t *testing.T) {
 		t.Fatalf("UpsertSetting insert: %v", err)
 	}
 
-	val, err := GetSetting(db, "theme")
+	val, found, err := GetSetting(db, "theme")
 	if err != nil {
 		t.Fatalf("GetSetting: %v", err)
+	}
+	if !found {
+		t.Fatal("expected setting to be found")
 	}
 	if val != "dark" {
 		t.Errorf("expected 'dark', got '%s'", val)
@@ -256,9 +259,12 @@ func TestSettings(t *testing.T) {
 		t.Fatalf("UpsertSetting update: %v", err)
 	}
 
-	val, err = GetSetting(db, "theme")
+	val, found, err = GetSetting(db, "theme")
 	if err != nil {
 		t.Fatalf("GetSetting after update: %v", err)
+	}
+	if !found {
+		t.Fatal("expected setting to be found after update")
 	}
 	if val != "light" {
 		t.Errorf("expected 'light', got '%s'", val)
@@ -270,5 +276,13 @@ func TestSettings(t *testing.T) {
 	}
 	if len(settings) != 1 {
 		t.Errorf("expected 1 setting, got %d", len(settings))
+	}
+
+	_, found, err = GetSetting(db, "nonexistent")
+	if err != nil {
+		t.Fatalf("GetSetting nonexistent: %v", err)
+	}
+	if found {
+		t.Error("expected false for missing setting")
 	}
 }

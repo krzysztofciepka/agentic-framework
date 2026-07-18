@@ -25,16 +25,16 @@ func GetSettings(db *sql.DB) ([]model.Setting, error) {
 	return settings, rows.Err()
 }
 
-func GetSetting(db *sql.DB, key string) (string, error) {
+func GetSetting(db *sql.DB, key string) (string, bool, error) {
 	var value string
 	err := db.QueryRow("SELECT value FROM settings WHERE key = ?", key).Scan(&value)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return "", nil
+			return "", false, nil
 		}
-		return "", fmt.Errorf("get setting: %w", err)
+		return "", false, fmt.Errorf("get setting: %w", err)
 	}
-	return value, nil
+	return value, true, nil
 }
 
 func UpsertSetting(db *sql.DB, key, value string) error {
