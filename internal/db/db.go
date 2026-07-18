@@ -15,6 +15,5 @@ func Open(path string) (*sql.DB, error) {
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("ping database: %w", err)
 	}
-	db.SetMaxOpenConns(1)
 	return db, nil
 }
