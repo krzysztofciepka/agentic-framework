@@ -55,6 +55,9 @@ var migrations = []string{
 		key TEXT PRIMARY KEY,
 		value TEXT
 	)`,
+	`CREATE INDEX IF NOT EXISTS idx_agents_provider ON agents(provider_id)`,
+	`CREATE INDEX IF NOT EXISTS idx_conversations_agent ON conversations(agent_id)`,
+	`CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id)`,
 }
 
 func Migrate(db *sql.DB) error {
