@@ -2,5 +2,6 @@ bin/
 web/dist/*
 !web/dist/.gitkeep
 web/node_modules/
+web/.svelte-kit/
 *.db
 .env
