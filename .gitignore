@@ -1,5 +1,6 @@
 bin/
-web/dist/
+web/dist/*
+!web/dist/.gitkeep
 web/node_modules/
 *.db
 .env
