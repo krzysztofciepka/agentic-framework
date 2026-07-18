@@ -2,13 +2,14 @@
   import { onMount } from 'svelte';
   import {
     getAgents, createAgent, updateAgent, deleteAgent,
-    getProviders, getTools,
+    getProviders, getTools, getSettings,
     type Agent, type Provider, type Tool,
   } from '$lib/api';
 
   let agents = $state<Agent[]>([]);
   let providers = $state<Provider[]>([]);
   let tools = $state<Tool[]>([]);
+  let modelSuggestions = $state<string[]>([]);
   let loading = $state(true);
   let submitting = $state(false);
   let showForm = $state(false);
@@ -22,11 +23,20 @@
   let formMaxTokens = $state(4096);
   let formToolIds = $state<number[]>([]);
 
+  async function loadModels() {
+    try {
+      const settings = await getSettings();
+      const raw = settings.find(s => s.key === 'openode_go_models')?.value || '';
+      modelSuggestions = raw.split(',').map(s => s.trim()).filter(Boolean);
+    } catch (_) {}
+  }
+
   async function loadData() {
     loading = true;
     try {
       const [a, p, t] = await Promise.all([getAgents(), getProviders(), getTools()]);
       agents = a; providers = p; tools = t;
+      loadModels();
     } catch (e) { console.error(e); }
     finally { loading = false; }
   }
@@ -110,7 +120,12 @@
         </div>
         <div class="field">
           <label for="model">Model</label>
-          <input id="model" type="text" required placeholder="gpt-4o" value={formModel} oninput={(e) => formModel = e.target.value} />
+          <input id="model" type="text" required placeholder="gpt-4o" value={formModel} oninput={(e) => formModel = e.target.value} list="model-list" />
+          <datalist id="model-list">
+            {#each modelSuggestions as m}
+              <option value={m} />
+            {/each}
+          </datalist>
         </div>
         <div class="field">
           <label for="temperature">Temperature: {formTemperature.toFixed(1)}</label>
