@@ -35,14 +35,23 @@ func (f *FileWrite) Execute(ctx context.Context, args map[string]any) (string, e
 		return "", fmt.Errorf("content parameter is required and must be a string")
 	}
 
-	dir := filepath.Dir(path)
+	resolved, err := safeResolve(allowedDir, path)
+	if err != nil {
+		return "", err
+	}
+
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+
+	dir := filepath.Dir(resolved)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", fmt.Errorf("create parent directory: %w", err)
 	}
 
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(resolved, []byte(content), 0644); err != nil {
 		return "", fmt.Errorf("write file: %w", err)
 	}
 
-	return fmt.Sprintf("Successfully wrote %d bytes to %s", len(content), path), nil
+	return fmt.Sprintf("Successfully wrote %d bytes to %s", len(content), resolved), nil
 }

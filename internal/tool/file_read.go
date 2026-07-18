@@ -4,7 +4,29 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 )
+
+var allowedDir = resolveAllowedDir()
+
+func resolveAllowedDir() string {
+	if d := os.Getenv("ALLOWED_DIR"); d != "" {
+		return filepath.Clean(d)
+	}
+	return filepath.Clean("/tmp/agentic-framework")
+}
+
+func safeResolve(baseDir, userPath string) (string, error) {
+	cleaned := filepath.Clean(userPath)
+	fullPath := filepath.Join(baseDir, cleaned)
+	fullPath = filepath.Clean(fullPath)
+	baseDir = filepath.Clean(baseDir)
+	if !strings.HasPrefix(fullPath, baseDir+string(filepath.Separator)) && fullPath != baseDir {
+		return "", fmt.Errorf("path escapes allowed directory: %s", userPath)
+	}
+	return fullPath, nil
+}
 
 type FileRead struct{}
 
@@ -28,7 +50,16 @@ func (f *FileRead) Execute(ctx context.Context, args map[string]any) (string, er
 		return "", fmt.Errorf("path parameter is required and must be a non-empty string")
 	}
 
-	data, err := os.ReadFile(path)
+	resolved, err := safeResolve(allowedDir, path)
+	if err != nil {
+		return "", err
+	}
+
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+
+	data, err := os.ReadFile(resolved)
 	if err != nil {
 		return fmt.Sprintf("Error reading file: %v", err), nil
 	}

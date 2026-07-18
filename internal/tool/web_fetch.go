@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type WebFetch struct{}
@@ -25,6 +26,8 @@ func (w *WebFetch) Parameters() ToolSchema {
 	}
 }
 
+var fetchHTTPClient = &http.Client{Timeout: 30 * time.Second}
+
 func (w *WebFetch) Execute(ctx context.Context, args map[string]any) (string, error) {
 	rawURL, ok := args["url"].(string)
 	if !ok || rawURL == "" {
@@ -37,7 +40,18 @@ func (w *WebFetch) Execute(ctx context.Context, args map[string]any) (string, er
 	}
 	req.Header.Set("User-Agent", "agentic-framework/1.0")
 
-	resp, err := http.DefaultClient.Do(req)
+	if rawFmt, ok := args["format"].(string); ok {
+		switch rawFmt {
+		case "text":
+			req.Header.Set("Accept", "text/plain")
+		case "html":
+			req.Header.Set("Accept", "text/html")
+		case "markdown":
+			req.Header.Set("Accept", "text/markdown")
+		}
+	}
+
+	resp, err := fetchHTTPClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("fetch request: %w", err)
 	}

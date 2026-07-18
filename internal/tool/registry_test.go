@@ -60,13 +60,13 @@ func TestRunCmd(t *testing.T) {
 }
 
 func TestFileReadWrite(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "test.txt")
+	allowedDir = t.TempDir()
+	relPath := "test.txt"
 	content := "hello world"
 
 	w := &FileWrite{}
 	result, err := w.Execute(context.Background(), map[string]any{
-		"path":    path,
+		"path":    relPath,
 		"content": content,
 	})
 	if err != nil {
@@ -78,7 +78,7 @@ func TestFileReadWrite(t *testing.T) {
 
 	r := &FileRead{}
 	result, err = r.Execute(context.Background(), map[string]any{
-		"path": path,
+		"path": relPath,
 	})
 	if err != nil {
 		t.Fatalf("read error: %v", err)
@@ -140,20 +140,21 @@ func TestFileReadErrors(t *testing.T) {
 }
 
 func TestFileWriteNested(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "a", "b", "c.txt")
+	allowedDir = t.TempDir()
+	relPath := filepath.Join("a", "b", "c.txt")
+	fullPath := filepath.Join(allowedDir, relPath)
 	content := "nested"
 
 	w := &FileWrite{}
 	_, err := w.Execute(context.Background(), map[string]any{
-		"path":    path,
+		"path":    relPath,
 		"content": content,
 	})
 	if err != nil {
 		t.Fatalf("write error: %v", err)
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(fullPath)
 	if err != nil {
 		t.Fatalf("read error: %v", err)
 	}
