@@ -24,13 +24,13 @@ func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name         string       `json:"name"`
-		SystemPrompt string       `json:"system_prompt"`
-		ProviderID   int64        `json:"provider_id"`
-		Model        string       `json:"model"`
-		Temperature  float64      `json:"temperature"`
-		MaxTokens    int          `json:"max_tokens"`
-		Tools        []model.Tool `json:"tools"`
+		Name         string  `json:"name"`
+		SystemPrompt string  `json:"system_prompt"`
+		ProviderID   int64   `json:"provider_id"`
+		Model        string  `json:"model"`
+		Temperature  float64 `json:"temperature"`
+		MaxTokens    int     `json:"max_tokens"`
+		ToolIDs      []int64 `json:"tool_ids"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_JSON", "invalid request body")
@@ -47,8 +47,10 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 	if req.MaxTokens == 0 {
 		req.MaxTokens = 4096
 	}
-	if req.Tools == nil {
-		req.Tools = []model.Tool{}
+
+	tools := make([]model.Tool, len(req.ToolIDs))
+	for i, id := range req.ToolIDs {
+		tools[i] = model.Tool{ID: id}
 	}
 
 	ag := &model.Agent{
@@ -58,7 +60,7 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 		Model:        req.Model,
 		Temperature:  req.Temperature,
 		MaxTokens:    req.MaxTokens,
-		Tools:        req.Tools,
+		Tools:        tools,
 	}
 	id, err := db.InsertAgent(s.db, ag)
 	if err != nil {
@@ -108,13 +110,13 @@ func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Name         string       `json:"name"`
-		SystemPrompt string       `json:"system_prompt"`
-		ProviderID   int64        `json:"provider_id"`
-		Model        string       `json:"model"`
-		Temperature  float64      `json:"temperature"`
-		MaxTokens    int          `json:"max_tokens"`
-		Tools        []model.Tool `json:"tools"`
+		Name         string  `json:"name"`
+		SystemPrompt string  `json:"system_prompt"`
+		ProviderID   int64   `json:"provider_id"`
+		Model        string  `json:"model"`
+		Temperature  float64 `json:"temperature"`
+		MaxTokens    int     `json:"max_tokens"`
+		ToolIDs      []int64 `json:"tool_ids"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_JSON", "invalid request body")
@@ -139,8 +141,12 @@ func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 	if req.MaxTokens != 0 {
 		existing.MaxTokens = req.MaxTokens
 	}
-	if req.Tools != nil {
-		existing.Tools = req.Tools
+	if len(req.ToolIDs) > 0 || req.Name != "" {
+		tools := make([]model.Tool, len(req.ToolIDs))
+		for i, id := range req.ToolIDs {
+			tools[i] = model.Tool{ID: id}
+		}
+		existing.Tools = tools
 	}
 
 	if existing.Temperature == 0 {
