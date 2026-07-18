@@ -1,6 +1,6 @@
 FROM golang:1.26-alpine AS build
 
-RUN apk add --no-cache nodejs npm
+RUN apk add --no-cache nodejs npm gcc musl-dev
 
 WORKDIR /src
 COPY go.mod go.sum ./
@@ -10,7 +10,7 @@ COPY . .
 
 RUN cd web && npm install --silent && npm run build
 
-RUN CGO_ENABLED=0 go build -o /server ./cmd/server
+RUN CGO_ENABLED=1 go build -o /server ./cmd/server
 
 FROM alpine:3.21
 
