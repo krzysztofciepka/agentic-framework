@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -14,17 +15,6 @@ import (
 	"github.com/krzysztofciepka/agentic-framework/internal/model"
 	"github.com/krzysztofciepka/agentic-framework/internal/tool"
 )
-
-type ParamProperty struct {
-	Type        string `json:"type"`
-	Description string `json:"description"`
-}
-
-type ToolSchema struct {
-	Type       string                   `json:"type"`
-	Properties map[string]ParamProperty `json:"properties"`
-	Required   []string                 `json:"required"`
-}
 
 type Message struct {
 	Role       string      `json:"role"`
@@ -53,7 +43,7 @@ type ToolDef struct {
 type FunctionDef struct {
 	Name        string     `json:"name"`
 	Description string     `json:"description"`
-	Parameters  ToolSchema `json:"parameters"`
+	Parameters  tool.ToolSchema `json:"parameters"`
 }
 
 type ChatRequest struct {
@@ -104,30 +94,24 @@ func NewClient(baseURL, apiKey, model string) *Client {
 	}
 }
 
-func (c *Client) Chat(ctx context.Context, messages []Message, tools []tool.Tool, temperature float64, maxTokens int) ([]Choice, error) {
-	var toolDefs []ToolDef
+func (c *Client) buildToolDefs(tools []tool.Tool) []ToolDef {
+	toolDefs := make([]ToolDef, 0, len(tools))
 	for _, t := range tools {
 		td := ToolDef{
 			Type: "function",
 			Function: &FunctionDef{
 				Name:        t.Name(),
 				Description: t.Description(),
+				Parameters:  t.Parameters(),
 			},
-		}
-		params := t.Parameters()
-		td.Function.Parameters = ToolSchema{
-			Type:       params.Type,
-			Properties: make(map[string]ParamProperty, len(params.Properties)),
-			Required:   params.Required,
-		}
-		for k, v := range params.Properties {
-			td.Function.Parameters.Properties[k] = ParamProperty{
-				Type:        v.Type,
-				Description: v.Description,
-			}
 		}
 		toolDefs = append(toolDefs, td)
 	}
+	return toolDefs
+}
+
+func (c *Client) Chat(ctx context.Context, messages []Message, tools []tool.Tool, temperature float64, maxTokens int) ([]Choice, error) {
+	toolDefs := c.buildToolDefs(tools)
 
 	req := ChatRequest{
 		Model:       c.model,
@@ -172,29 +156,7 @@ func (c *Client) Chat(ctx context.Context, messages []Message, tools []tool.Tool
 func (c *Client) ChatStream(ctx context.Context, messages []Message, tools []tool.Tool, temperature float64, maxTokens int, ch chan<- StreamChunk) error {
 	defer close(ch)
 
-	var toolDefs []ToolDef
-	for _, t := range tools {
-		td := ToolDef{
-			Type: "function",
-			Function: &FunctionDef{
-				Name:        t.Name(),
-				Description: t.Description(),
-			},
-		}
-		params := t.Parameters()
-		td.Function.Parameters = ToolSchema{
-			Type:       params.Type,
-			Properties: make(map[string]ParamProperty, len(params.Properties)),
-			Required:   params.Required,
-		}
-		for k, v := range params.Properties {
-			td.Function.Parameters.Properties[k] = ParamProperty{
-				Type:        v.Type,
-				Description: v.Description,
-			}
-		}
-		toolDefs = append(toolDefs, td)
-	}
+	toolDefs := c.buildToolDefs(tools)
 
 	req := ChatRequest{
 		Model:       c.model,
@@ -249,6 +211,7 @@ func (c *Client) ChatStream(ctx context.Context, messages []Message, tools []too
 
 		var chunk StreamChunk
 		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+			log.Printf("llm: failed to parse SSE chunk: %v", err)
 			continue
 		}
 
