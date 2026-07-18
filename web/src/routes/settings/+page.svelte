@@ -2,63 +2,32 @@
   import { onMount } from 'svelte';
   import {
     getProviders, createProvider, updateProvider, deleteProvider,
-    getTools, getSettings,
-    type Provider, type Tool, type Setting,
+    getTools, type Provider, type Tool,
   } from '$lib/api';
 
   let providers = $state<Provider[]>([]);
   let tools = $state<Tool[]>([]);
-  let settings = $state<Setting[]>([]);
-
   let showProviderForm = $state(false);
   let editingProvId = $state<number | null>(null);
   let provName = $state('');
   let provBaseURL = $state('');
   let provAPIKey = $state('');
-
   let saving = $state(false);
 
-  onMount(() => {
-    loadProviders();
-    loadTools();
-    loadSettings();
-  });
+  onMount(() => { loadProviders(); loadTools(); });
 
-  async function loadProviders() {
-    try { providers = await getProviders(); } catch (e) { console.error(e); }
-  }
-
-  async function loadTools() {
-    try { tools = await getTools(); } catch (e) { console.error(e); }
-  }
-
-  async function loadSettings() {
-    try { settings = await getSettings(); } catch (e) { console.error(e); }
-  }
+  async function loadProviders() { try { providers = await getProviders(); } catch (e) { console.error(e); } }
+  async function loadTools() { try { tools = await getTools(); } catch (e) { console.error(e); } }
 
   function resetForm() {
-    showProviderForm = false;
-    editingProvId = null;
-    provName = '';
-    provBaseURL = '';
-    provAPIKey = '';
+    showProviderForm = false; editingProvId = null;
+    provName = ''; provBaseURL = ''; provAPIKey = '';
   }
 
-  function handleAdd() {
-    resetForm();
-    showProviderForm = true;
-  }
-
+  function handleAdd() { resetForm(); showProviderForm = true; }
   function handleEdit(prov: Provider) {
-    showProviderForm = true;
-    editingProvId = prov.id;
-    provName = prov.name;
-    provBaseURL = prov.base_url;
-    provAPIKey = '';
-  }
-
-  function handleCancel() {
-    resetForm();
+    showProviderForm = true; editingProvId = prov.id;
+    provName = prov.name; provBaseURL = prov.base_url; provAPIKey = '';
   }
 
   async function handleSave() {
@@ -66,257 +35,128 @@
     saving = true;
     try {
       if (editingProvId !== null) {
-        await updateProvider(editingProvId, {
-          name: provName.trim(),
-          base_url: provBaseURL.trim(),
-          api_key: provAPIKey,
-        });
+        await updateProvider(editingProvId, { name: provName.trim(), base_url: provBaseURL.trim(), api_key: provAPIKey });
       } else {
-        await createProvider({
-          name: provName.trim(),
-          base_url: provBaseURL.trim(),
-          api_key: provAPIKey,
-        });
+        await createProvider({ name: provName.trim(), base_url: provBaseURL.trim(), api_key: provAPIKey });
       }
-      await loadProviders();
-      resetForm();
-    } catch (e) {
-      console.error(e);
-    } finally {
-      saving = false;
-    }
+      await loadProviders(); resetForm();
+    } catch (e) { console.error(e); }
+    finally { saving = false; }
   }
 
   async function handleDelete(prov: Provider) {
-    if (!confirm(`Delete provider "${prov.name}"?`)) return;
-    try {
-      await deleteProvider(prov.id);
-      providers = providers.filter(p => p.id !== prov.id);
-    } catch (e) {
-      console.error(e);
-    }
+    if (!confirm(`Delete "${prov.name}"?`)) return;
+    try { await deleteProvider(prov.id); providers = providers.filter(p => p.id !== prov.id); }
+    catch (e) { console.error(e); }
   }
 </script>
 
-<section class="settings-section">
-  <div class="section-header">
-    <h2>Providers</h2>
-    <button onclick={handleAdd} disabled={showProviderForm && editingProvId === null}>+ Add</button>
-  </div>
-
-  {#if showProviderForm}
-    <div class="form-card">
-      <div class="form-field">
-        <label for="prov-name">Name</label>
-        <input id="prov-name" value={provName} oninput={(e) => provName = e.target.value} placeholder="Provider name" />
-      </div>
-      <div class="form-field">
-        <label for="prov-url">Base URL</label>
-        <input id="prov-url" value={provBaseURL} oninput={(e) => provBaseURL = e.target.value} placeholder="https://api.example.com/v1" />
-      </div>
-      <div class="form-field">
-        <label for="prov-key">API Key</label>
-        <input id="prov-key" type="password" value={provAPIKey} oninput={(e) => provAPIKey = e.target.value} placeholder={editingProvId !== null ? '(unchanged if empty)' : 'API key'} />
-      </div>
-      <div class="form-actions">
-        <button onclick={handleSave} disabled={saving}>
-          {saving ? 'Saving...' : 'Save'}
-        </button>
-        <button class="btn-secondary" onclick={handleCancel}>Cancel</button>
-      </div>
+<div class="page">
+  <section class="section">
+    <div class="section-header">
+      <h2>[+] Providers</h2>
+      <button onclick={handleAdd} disabled={showProviderForm && editingProvId === null}>[+] Add</button>
     </div>
-  {/if}
 
-  <div class="provider-list">
-    {#each providers as prov (prov.id)}
-      <div class="provider-card">
-        <div class="provider-info">
-          <span class="provider-name">{prov.name}</span>
-          <span class="provider-url">{prov.base_url}</span>
+    {#if showProviderForm}
+      <div class="card form-card">
+        <div class="form-field">
+          <label for="prov-name">Name</label>
+          <input id="prov-name" value={provName} oninput={(e) => provName = e.target.value} placeholder="Provider name" />
         </div>
-        <div class="provider-actions">
-          <button class="btn-small" onclick={() => handleEdit(prov)}>Edit</button>
-          <button class="btn-small btn-danger" onclick={() => handleDelete(prov)}>Delete</button>
+        <div class="form-field">
+          <label for="prov-url">Base URL</label>
+          <input id="prov-url" value={provBaseURL} oninput={(e) => provBaseURL = e.target.value} placeholder="https://api.example.com/v1" />
+        </div>
+        <div class="form-field">
+          <label for="prov-key">API Key</label>
+          <input id="prov-key" type="password" value={provAPIKey} oninput={(e) => provAPIKey = e.target.value} placeholder={editingProvId !== null ? '(unchanged if empty)' : 'API key'} />
+        </div>
+        <div class="form-actions">
+          <button onclick={handleSave} disabled={saving}>{saving ? '[...]' : 'Save'}</button>
+          <button class="btn-secondary" onclick={resetForm}>Cancel</button>
         </div>
       </div>
-    {:else}
-      <p class="muted">No providers configured.</p>
-    {/each}
-  </div>
-</section>
+    {/if}
 
-<section class="settings-section">
-  <h2>Available Tools</h2>
-
-  <div class="tools-grid">
-    {#each tools as tool (tool.id)}
-      <div class="tool-card">
-        <div class="tool-header">
-          <span class="tool-name">{tool.name}</span>
-          <span class="tool-category">{tool.category}</span>
+    <div class="provider-list">
+      {#each providers as prov (prov.id)}
+        <div class="card provider-card">
+          <div>
+            <div class="provider-name">{prov.name}</div>
+            <div class="provider-url">{prov.base_url}</div>
+          </div>
+          <div class="provider-actions">
+            <button class="btn-secondary" onclick={() => handleEdit(prov)}>Edit</button>
+            <button class="btn-danger" onclick={() => handleDelete(prov)}>Delete</button>
+          </div>
         </div>
-        <p class="tool-description">{tool.description}</p>
-      </div>
-    {:else}
-      <p class="muted">No tools available.</p>
-    {/each}
-  </div>
-</section>
+      {:else}
+        <p class="muted">[-] No providers configured.</p>
+      {/each}
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>[+] Available Tools</h2>
+    <div class="tools-grid">
+      {#each tools as tool (tool.id)}
+        <div class="card tool-card">
+          <div class="tool-header">
+            <span class="tool-name">{tool.name}</span>
+            <span class="tool-category">[{tool.category}]</span>
+          </div>
+          <p class="tool-description">{tool.description}</p>
+        </div>
+      {:else}
+        <p class="muted">[-] No tools available.</p>
+      {/each}
+    </div>
+  </section>
+</div>
 
 <style>
-  .settings-section {
-    margin-bottom: 2.5rem;
-  }
+  .page { max-width: 800px; }
+  .section { margin-bottom: 96px; }
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  h2 { margin: 0 0 12px 0; font-size: 16px; font-weight: 700; color: var(--ink); }
+  .section-header h2 { margin: 0; }
 
-  .section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 1rem;
+  .card {
+    background: var(--canvas);
+    border: 1px solid var(--hairline);
+    border-radius: 0;
+    padding: 16px;
+    margin-bottom: 8px;
   }
-
-  h2 {
-    margin: 0 0 1rem 0;
-    font-size: 1.25rem;
-    font-weight: 600;
-  }
-
-  .section-header h2 {
-    margin: 0;
-  }
-
-  .form-card {
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 1.25rem;
-    margin-bottom: 1.25rem;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-  }
-
-  .form-field {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-  }
-
-  .form-field label {
-    font-size: 0.85rem;
-    color: var(--text-muted);
-  }
-
-  .form-field input {
-    width: 100%;
-  }
-
-  .form-actions {
-    display: flex;
-    gap: 0.5rem;
-  }
+  .form-card { display: flex; flex-direction: column; gap: 12px; }
+  .form-field { display: flex; flex-direction: column; gap: 4px; }
+  .form-field label { font-size: 14px; color: var(--mute); line-height: 2; }
+  .form-actions { display: flex; gap: 8px; }
 
   .btn-secondary {
-    background: var(--bg-elevated);
-    color: var(--text);
-    border: 1px solid var(--border);
+    background: var(--canvas); color: var(--ink);
+    border: 1px solid var(--hairline-strong); border-radius: var(--rounded-sm);
+    padding: 4px 20px; height: 36px; font-family: inherit;
+    font-size: 16px; font-weight: 500; line-height: 2; cursor: pointer;
   }
+  .btn-secondary:active { background: var(--surface-card); }
+  .btn-secondary:disabled { background: var(--surface-card); color: var(--ash); }
+  .btn-danger { background: var(--danger); color: #fff; border-radius: var(--rounded-sm); }
+  .btn-danger:active { background: var(--danger-active); }
+  .btn-danger:disabled { background: var(--surface-card); color: var(--ash); }
 
-  .btn-small {
-    padding: 0.3rem 0.6rem;
-    font-size: 0.8rem;
-  }
+  .provider-list { display: flex; flex-direction: column; }
+  .provider-card { display: flex; align-items: center; justify-content: space-between; }
+  .provider-name { font-size: 16px; font-weight: 500; color: var(--ink); }
+  .provider-url { font-size: 14px; color: var(--mute); margin-top: 2px; }
+  .provider-actions { display: flex; gap: 8px; }
 
-  .btn-danger {
-    background: var(--danger);
-    color: #fff;
-  }
-
-  .provider-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .provider-card {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 0.75rem 1rem;
-  }
-
-  .provider-info {
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-  }
-
-  .provider-name {
-    font-weight: 600;
-    font-size: 0.95rem;
-  }
-
-  .provider-url {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-  }
-
-  .provider-actions {
-    display: flex;
-    gap: 0.4rem;
-  }
-
-  .tools-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 0.75rem;
-  }
-
-  .tool-card {
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 1rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .tool-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-  }
-
-  .tool-name {
-    font-weight: 600;
-    font-size: 0.95rem;
-  }
-
-  .tool-category {
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    background: var(--bg-elevated);
-    color: var(--accent);
-    padding: 0.15rem 0.5rem;
-    border-radius: 12px;
-    white-space: nowrap;
-  }
-
-  .tool-description {
-    margin: 0;
-    font-size: 0.85rem;
-    color: var(--text-muted);
-    line-height: 1.4;
-  }
-
-  .muted {
-    color: var(--text-muted);
-    font-size: 0.9rem;
-  }
+  .tools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+  .tool-card { display: flex; flex-direction: column; gap: 8px; }
+  .tool-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .tool-name { font-size: 16px; font-weight: 500; color: var(--ink); }
+  .tool-category { font-size: 14px; color: var(--mute); }
+  .tool-description { margin: 0; font-size: 16px; color: var(--body-c); line-height: 1.5; }
+  .muted { color: var(--mute); font-size: 16px; }
 </style>

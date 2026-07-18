@@ -38,11 +38,15 @@ func NewServer(db *sql.DB, toolRegistry *tool.Registry, staticFS embed.FS) *Serv
 		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Content-Type", "Authorization"},
-		AllowCredentials: false,
+		AllowCredentials: true,
 		MaxAge:           300,
 	}))
 
+	s.router.Use(s.authMiddleware)
+
 	s.router.Route("/api", func(r chi.Router) {
+		r.Post("/login", s.handleLogin)
+		r.Get("/login", s.handleLogin)
 		r.Get("/docs", s.handleDocs)
 		r.Get("/agents", s.handleListAgents)
 		r.Post("/agents", s.handleCreateAgent)

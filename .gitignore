@@ -5,3 +5,5 @@ web/node_modules/
 web/.svelte-kit/
 *.db
 .env
+data/
+server
