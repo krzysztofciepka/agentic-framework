@@ -98,11 +98,22 @@ export const deleteConversation = (id: number) =>
 // Messages
 export const getMessages = (conversationId: number) =>
   request<Message[]>('/conversations/' + conversationId + '/messages');
-export const sendMessage = (conversationId: number, content: string) =>
+export const sendMessage = (conversationId: number, content: string, images?: string[]) =>
   request<{ role: string; content: string }>(`/conversations/${conversationId}/messages`, {
     method: 'POST',
-    body: JSON.stringify({ role: 'user', content }),
+    body: JSON.stringify({ role: 'user', content, images }),
   });
+
+export const uploadImage = async (file: File): Promise<{id: string, url: string}> => {
+  const form = new FormData();
+  form.append('image', file);
+  const res = await fetch(`${BASE}/upload`, { method: 'POST', body: form });
+  if (!res.ok) {
+    const data = await res.json();
+    throw new Error(data.error || 'Upload failed');
+  }
+  return res.json();
+};
 
 // Settings
 export const getSettings = () => request<Setting[]>('/settings');

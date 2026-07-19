@@ -18,9 +18,20 @@ import (
 
 type Message struct {
 	Role       string      `json:"role"`
-	Content    string      `json:"content,omitempty"`
+	Content    any         `json:"content,omitempty"`
 	ToolCallID string      `json:"tool_call_id,omitempty"`
 	ToolCalls  []*ToolCall `json:"tool_calls,omitempty"`
+}
+
+type ContentBlock struct {
+	Type     string         `json:"type"`
+	Text     string         `json:"text,omitempty"`
+	ImageURL *ImageURLBlock `json:"image_url,omitempty"`
+}
+
+type ImageURLBlock struct {
+	URL    string `json:"url"`
+	Detail string `json:"detail,omitempty"`
 }
 
 type ToolCall struct {

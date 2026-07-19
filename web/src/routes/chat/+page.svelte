@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import {
     getAgents, getConversations, getConversation,
-    createConversation, sendMessage,
+    createConversation, sendMessage, uploadImage,
     type Agent, type Conversation, type Message,
   } from '$lib/api';
 
@@ -13,6 +13,7 @@
   let messages = $state<Message[]>([]);
   let input = $state('');
   let sending = $state(false);
+  let pendingImages = $state<{id:string, url:string}[]>([]);
 
   onMount(async () => {
     await loadAgents();
@@ -72,7 +73,9 @@
     const userMsg: Message = { id: Date.now(), conversation_id: selectedConv.id, role: 'user', content, created_at: new Date().toISOString() };
     messages = [...messages, userMsg]; input = ''; sending = true;
     try {
-      const response = await sendMessage(selectedConv.id, content);
+      const images = pendingImages.map(i => i.url);
+      const response = await sendMessage(selectedConv.id, content, images);
+      pendingImages = [];
       const assistantMsg: Message = { id: Date.now() + 1, conversation_id: selectedConv.id, role: response.role, content: response.content, created_at: new Date().toISOString() };
       messages = [...messages, assistantMsg];
       try { conversations = await getConversations(selectedAgent!.id); } catch (_) {}
@@ -80,6 +83,17 @@
       const errorMsg: Message = { id: Date.now() + 2, conversation_id: selectedConv.id, role: 'error', content: e?.message ?? 'Failed', created_at: new Date().toISOString() };
       messages = [...messages, errorMsg];
     } finally { sending = false; }
+  }
+
+  async function handleImageSelect(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      const result = await uploadImage(file);
+      pendingImages = [...pendingImages, result];
+    } catch (err) { console.error(err); }
+    input.value = '';
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -127,7 +141,19 @@
         {/each}
       </div>
       <div class="input-area">
+        {#if pendingImages.length > 0}
+          <div class="image-previews">
+            {#each pendingImages as img}
+              <div class="image-preview">
+                <img src={img.url} alt="upload" />
+                <button class="remove-btn" onclick={() => pendingImages = pendingImages.filter(i => i.id !== img.id)}>[x]</button>
+              </div>
+            {/each}
+          </div>
+        {/if}
         <textarea placeholder="Type a message... (Shift+Enter for newline)" value={input} oninput={(e) => input = e.target.value} onkeydown={handleKeydown} disabled={sending} rows={3}></textarea>
+        <input type="file" id="image-input" accept="image/*" style="display:none" onchange={handleImageSelect} />
+        <button class="upload-btn btn-secondary" onclick={() => document.getElementById('image-input')?.click()} disabled={sending}>[img]</button>
         <button class="send-btn" onclick={handleSend} disabled={sending || !input.trim()}>
           {sending ? '...' : 'Send'}
         </button>
@@ -188,5 +214,10 @@
   }
   .btn-secondary:active { background: var(--surface-card); }
   .btn-secondary:disabled { background: var(--surface-card); color: var(--ash); cursor: not-allowed; opacity: 1; }
+  .image-previews { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .image-preview { position: relative; width: 80px; height: 80px; border: 1px solid var(--hairline); border-radius: var(--rounded-sm); overflow: hidden; }
+  .image-preview img { width: 100%; height: 100%; object-fit: cover; }
+  .remove-btn { position: absolute; top: 2px; right: 2px; background: var(--danger); color: #fff; width: 20px; height: 20px; padding: 0; font-size: 12px; line-height: 1; border-radius: 2px; }
+  .upload-btn { width: 40px; padding: 0; }
   .muted { color: var(--mute); font-size: 16px; }
 </style>

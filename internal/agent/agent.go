@@ -144,7 +144,8 @@ func (o *Orchestrator) RunStream(
 		for _, tc := range toolCalls {
 			toolMsg := o.executeTool(ctx, tc.Function.Name, tc.Function.Arguments, tc.ID)
 			messages = append(messages, toolMsg)
-			eventCh <- StreamEvent{Type: "tool_end", Content: toolMsg.Content, Tool: tc.Function.Name}
+			toolContent, _ := toolMsg.Content.(string)
+			eventCh <- StreamEvent{Type: "tool_end", Content: toolContent, Tool: tc.Function.Name}
 		}
 	}
 

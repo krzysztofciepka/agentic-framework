@@ -5,6 +5,7 @@ import (
 	"embed"
 	"io/fs"
 	"net/http"
+	"os"
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
@@ -67,8 +68,15 @@ func NewServer(db *sql.DB, toolRegistry *tool.Registry, staticFS embed.FS) *Serv
 		r.Post("/conversations/{id}/stream", s.handleStreamMessage)
 		r.Get("/settings", s.handleGetSettings)
 		r.Put("/settings", s.handleUpdateSettings)
+		r.Post("/upload", s.handleUpload)
 		r.Get("/ws", s.wsHub.HandleConnection)
 	})
+
+	uploadDir := os.Getenv("UPLOAD_DIR")
+	if uploadDir == "" {
+		uploadDir = "data/uploads"
+	}
+	s.router.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(http.Dir(uploadDir))))
 
 	content, err := fs.Sub(staticFS, "web/dist")
 	if err == nil {

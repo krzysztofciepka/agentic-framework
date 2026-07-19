@@ -75,8 +75,9 @@ func (s *Server) handleSendMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Role    string `json:"role"`
-		Content string `json:"content"`
+		Role    string   `json:"role"`
+		Content string   `json:"content"`
+		Images  []string `json:"images"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_JSON", "invalid request body")
@@ -156,6 +157,17 @@ func (s *Server) handleSendMessage(w http.ResponseWriter, r *http.Request) {
 		{Role: "system", Content: ag.SystemPrompt},
 	}
 	llmMsgs = append(llmMsgs, llm.ModelMessagesToLLM(allMsgs)...)
+
+	if len(req.Images) > 0 {
+		blocks := []llm.ContentBlock{{Type: "text", Text: req.Content}}
+		for _, imgURL := range req.Images {
+			blocks = append(blocks, llm.ContentBlock{
+				Type:     "image_url",
+				ImageURL: &llm.ImageURLBlock{URL: "https://" + r.Host + imgURL, Detail: "auto"},
+			})
+		}
+		llmMsgs[len(llmMsgs)-1].Content = blocks
+	}
 
 	toolNames := make([]string, len(ag.Tools))
 	for i, t := range ag.Tools {
@@ -199,10 +211,11 @@ func (s *Server) handleSendMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, llmMsg := range fullMsgs[originalLen:] {
+		contentStr, _ := llmMsg.Content.(string)
 		dbMsg := model.Message{
 			ConversationID: convID,
 			Role:           llmMsg.Role,
-			Content:        llmMsg.Content,
+			Content:        contentStr,
 		}
 		if llmMsg.Role == "assistant" && len(llmMsg.ToolCalls) > 0 {
 			tcJSON, _ := json.Marshal(llmMsg.ToolCalls)
@@ -227,9 +240,10 @@ func (s *Server) handleSendMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	lastAssistant := results[len(results)-1]
+	lastContent, _ := lastAssistant.Content.(string)
 	writeJSON(w, http.StatusOK, map[string]string{
 		"role":    lastAssistant.Role,
-		"content": lastAssistant.Content,
+		"content": lastContent,
 	})
 }
 
@@ -242,8 +256,9 @@ func (s *Server) handleStreamMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Role    string `json:"role"`
-		Content string `json:"content"`
+		Role    string   `json:"role"`
+		Content string   `json:"content"`
+		Images  []string `json:"images"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_JSON", "invalid request body")
@@ -323,6 +338,17 @@ func (s *Server) handleStreamMessage(w http.ResponseWriter, r *http.Request) {
 		{Role: "system", Content: ag.SystemPrompt},
 	}
 	llmMsgs = append(llmMsgs, llm.ModelMessagesToLLM(allMsgs)...)
+
+	if len(req.Images) > 0 {
+		blocks := []llm.ContentBlock{{Type: "text", Text: req.Content}}
+		for _, imgURL := range req.Images {
+			blocks = append(blocks, llm.ContentBlock{
+				Type:     "image_url",
+				ImageURL: &llm.ImageURLBlock{URL: "https://" + r.Host + imgURL, Detail: "auto"},
+			})
+		}
+		llmMsgs[len(llmMsgs)-1].Content = blocks
+	}
 
 	toolNames := make([]string, len(ag.Tools))
 	for i, t := range ag.Tools {
@@ -386,10 +412,11 @@ func (s *Server) handleStreamMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, llmMsg := range streamResult.msgs[originalLen:] {
+		contentStr, _ := llmMsg.Content.(string)
 		dbMsg := model.Message{
 			ConversationID: convID,
 			Role:           llmMsg.Role,
-			Content:        llmMsg.Content,
+			Content:        contentStr,
 		}
 		if llmMsg.Role == "assistant" && len(llmMsg.ToolCalls) > 0 {
 			tcJSON, _ := json.Marshal(llmMsg.ToolCalls)
