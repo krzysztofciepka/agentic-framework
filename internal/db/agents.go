@@ -86,6 +86,9 @@ func GetAgents(db *sql.DB) ([]model.Agent, error) {
 		if err != nil {
 			return nil, err
 		}
+		if tools == nil {
+			tools = []model.Tool{}
+		}
 		a.Tools = tools
 		agents = append(agents, a)
 	}
@@ -107,6 +110,9 @@ func GetAgent(db *sql.DB, id int64) (*model.Agent, error) {
 	tools, err := GetAgentTools(db, a.ID)
 	if err != nil {
 		return nil, err
+	}
+	if tools == nil {
+		tools = []model.Tool{}
 	}
 	a.Tools = tools
 	return &a, nil
