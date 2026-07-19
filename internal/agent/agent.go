@@ -94,9 +94,13 @@ func (o *Orchestrator) RunStream(
 			for _, choice := range chunk.Choices {
 				delta := choice.Delta
 
-				if delta.Content != "" {
-					fullContent += delta.Content
-					eventCh <- StreamEvent{Type: "content", Content: delta.Content}
+			if delta.Content != "" || delta.ReasoningContent != "" {
+				text := delta.Content
+				if text == "" {
+					text = delta.ReasoningContent
+				}
+				fullContent += text
+				eventCh <- StreamEvent{Type: "content", Content: text}
 				}
 
 				for _, tc := range delta.ToolCalls {
