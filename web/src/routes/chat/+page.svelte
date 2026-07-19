@@ -14,6 +14,7 @@
   let input = $state('');
   let sending = $state(false);
   let pendingImages = $state<{id:string, url:string}[]>([]);
+  let streamingContent = $state('');
 
   onMount(async () => {
     await loadAgents();
@@ -70,19 +71,51 @@
   async function handleSend() {
     const content = input.trim();
     if (!content || !selectedConv || sending) return;
+    const imgUrls = pendingImages.map(i => i.url);
     const userMsg: Message = { id: Date.now(), conversation_id: selectedConv.id, role: 'user', content, created_at: new Date().toISOString() };
-    messages = [...messages, userMsg]; input = ''; sending = true;
+    messages = [...messages, userMsg]; pendingImages = []; input = ''; sending = true;
+
+    const assistantMsg: Message = { id: Date.now() + 1, conversation_id: selectedConv.id, role: 'assistant', content: '[...]', created_at: '' };
+    messages = [...messages, assistantMsg];
+    let streamed = '';
+
     try {
-      const images = pendingImages.map(i => i.url);
-      const response = await sendMessage(selectedConv.id, content, images);
-      pendingImages = [];
-      const assistantMsg: Message = { id: Date.now() + 1, conversation_id: selectedConv.id, role: response.role, content: response.content, created_at: new Date().toISOString() };
-      messages = [...messages, assistantMsg];
+      const res = await fetch('/api/conversations/' + selectedConv.id + '/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'user', content, images: imgUrls }),
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Stream failed'); }
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error('No reader');
+      const dec = new TextDecoder();
+      let buf = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const evt = JSON.parse(line.slice(6));
+            if (evt.type === 'content') streamed += evt.content;
+            else if (evt.type === 'tool_start') streamed += '\n[' + evt.tool + ']\n';
+            else if (evt.type === 'tool_end') streamed += (evt.content || '') + '\n';
+            messages[messages.length - 1] = { ...assistantMsg, content: streamed || '[...]' };
+            messages = messages;
+          } catch (_) {}
+        }
+      }
+      messages[messages.length - 1] = { ...assistantMsg, content: streamed, created_at: new Date().toISOString() };
+      messages = messages;
       try { conversations = await getConversations(selectedAgent!.id); } catch (_) {}
     } catch (e: any) {
-      const errorMsg: Message = { id: Date.now() + 2, conversation_id: selectedConv.id, role: 'error', content: e?.message ?? 'Failed', created_at: new Date().toISOString() };
-      messages = [...messages, errorMsg];
+      messages = messages.filter(m => m.id !== assistantMsg.id);
+      messages = [...messages, { id: Date.now() + 2, conversation_id: selectedConv.id, role: 'error', content: e?.message ?? 'Failed', created_at: new Date().toISOString() }];
     } finally { sending = false; }
+    messages = messages;
   }
 
   async function handleImageSelect(e: Event) {
