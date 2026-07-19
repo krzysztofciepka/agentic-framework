@@ -83,7 +83,6 @@ func (w *WebSearch) Execute(ctx context.Context, args map[string]any) (string, e
 		return "", fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Accept-Encoding", "gzip")
 	req.Header.Set("X-Subscription-Token", apiKey)
 
 	resp, err := http.DefaultClient.Do(req)
