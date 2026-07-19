@@ -204,7 +204,9 @@ func (c *Client) ChatStream(ctx context.Context, messages []Message, tools []too
 	}
 
 	scanner := bufio.NewScanner(resp.Body)
+	lineCount := 0
 	for scanner.Scan() {
+		lineCount++
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -237,6 +239,7 @@ func (c *Client) ChatStream(ctx context.Context, messages []Message, tools []too
 	if err := scanner.Err(); err != nil {
 		return fmt.Errorf("scan response: %w", err)
 	}
+	log.Printf("llm: stream ended after %d lines", lineCount)
 
 	return nil
 }
