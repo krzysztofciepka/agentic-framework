@@ -72,7 +72,7 @@ func NewServer(db *sql.DB, toolRegistry *tool.Registry, staticFS embed.FS) *Serv
 
 	content, err := fs.Sub(staticFS, "web/dist")
 	if err == nil {
-		fileServer := http.FileServer(http.FS(content))
+		fileServer := spaFileServer{fs: http.FS(content)}
 		s.router.Handle("/*", fileServer)
 	}
 
@@ -81,4 +81,39 @@ func NewServer(db *sql.DB, toolRegistry *tool.Registry, staticFS embed.FS) *Serv
 
 func (s *Server) Handler() http.Handler {
 	return s.router
+}
+
+type spaFileServer struct {
+	fs http.FileSystem
+}
+
+func (sfs spaFileServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	f, err := sfs.fs.Open(r.URL.Path)
+	if err != nil {
+		f, err = sfs.fs.Open("index.html")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+	}
+	defer f.Close()
+
+	stat, err := f.Stat()
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	if stat.IsDir() {
+		f.Close()
+		f, err = sfs.fs.Open("index.html")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		defer f.Close()
+		stat, _ = f.Stat()
+	}
+
+	http.ServeContent(w, r, stat.Name(), stat.ModTime(), f)
 }
