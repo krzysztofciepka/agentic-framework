@@ -217,10 +217,6 @@ func (s *Server) handleSendMessage(w http.ResponseWriter, r *http.Request) {
 			Role:           llmMsg.Role,
 			Content:        contentStr,
 		}
-		if llmMsg.Role == "assistant" && len(llmMsg.ToolCalls) > 0 {
-			tcJSON, _ := json.Marshal(llmMsg.ToolCalls)
-			dbMsg.Content = string(tcJSON)
-		}
 		if llmMsg.Role == "tool" {
 			dbMsg.ToolCallID = llmMsg.ToolCallID
 			dbMsg.ToolName = toolCallName[llmMsg.ToolCallID]
@@ -417,10 +413,6 @@ func (s *Server) handleStreamMessage(w http.ResponseWriter, r *http.Request) {
 			ConversationID: convID,
 			Role:           llmMsg.Role,
 			Content:        contentStr,
-		}
-		if llmMsg.Role == "assistant" && len(llmMsg.ToolCalls) > 0 {
-			tcJSON, _ := json.Marshal(llmMsg.ToolCalls)
-			dbMsg.Content = string(tcJSON)
 		}
 		if llmMsg.Role == "tool" {
 			dbMsg.ToolCallID = llmMsg.ToolCallID
