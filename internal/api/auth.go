@@ -17,7 +17,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		if r.URL.Path == "/api/login" || isAuthenticated(r, password) {
+		if r.URL.Path == "/api/login" || r.URL.Path == "/api/docs" || isAuthenticated(r, password) {
 			next.ServeHTTP(w, r)
 			return
 		}

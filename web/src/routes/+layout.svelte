@@ -9,6 +9,7 @@
     <a href="/" class="nav-item">[+] Agents</a>
     <a href="/chat" class="nav-item">[+] Chat</a>
     <a href="/settings" class="nav-item">[+] Settings</a>
+    <a href="/api/docs" target="_blank" class="nav-item">[+] Docs</a>
   </nav>
   <main class="content">
     {@render children?.()}
