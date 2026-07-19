@@ -18,7 +18,7 @@ type Agent struct {
 	Model        string    `json:"model"`
 	Temperature  float64   `json:"temperature"`
 	MaxTokens    int       `json:"max_tokens"`
-	Tools        []Tool    `json:"tools,omitempty"`
+	Tools        []Tool    `json:"tools"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
