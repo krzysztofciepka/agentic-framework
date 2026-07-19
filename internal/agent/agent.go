@@ -48,12 +48,11 @@ func (o *Orchestrator) Run(
 
 		msg := choices[0].Message
 		results = append(results, msg)
+		messages = append(messages, msg)
 
 		if len(msg.ToolCalls) == 0 {
 			return results, messages, nil
 		}
-
-		messages = append(messages, msg)
 
 		for _, tc := range msg.ToolCalls {
 			if tc.Function == nil {
