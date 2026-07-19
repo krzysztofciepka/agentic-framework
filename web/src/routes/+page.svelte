@@ -18,7 +18,7 @@
   let formName = $state('');
   let formSystemPrompt = $state('');
   let formProviderId = $state(0);
-  let formModel = $state('gpt-4o');
+  let formModel = $state('deepseek-v4-pro');
   let formTemperature = $state(0.7);
   let formMaxTokens = $state(4096);
   let formToolIds = $state<number[]>([]);
@@ -43,7 +43,7 @@
 
   function resetForm() {
     formName = ''; formSystemPrompt = ''; formProviderId = 0;
-    formModel = 'gpt-4o'; formTemperature = 0.7; formMaxTokens = 4096;
+    formModel = 'deepseek-v4-pro'; formTemperature = 0.7; formMaxTokens = 4096;
     formToolIds = []; editingId = null; showForm = false;
   }
 
@@ -120,7 +120,7 @@
         </div>
         <div class="field">
           <label for="model">Model</label>
-          <input id="model" type="text" required placeholder="gpt-4o" value={formModel} oninput={(e) => formModel = e.target.value} list="model-list" />
+          <input id="model" type="text" required placeholder="deepseek-v4-pro" value={formModel} oninput={(e) => formModel = e.target.value} list="model-list" />
           <datalist id="model-list">
             {#each modelSuggestions as m}
               <option value={m} />
