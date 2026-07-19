@@ -270,6 +270,6 @@
   .image-preview { position: relative; width: 80px; height: 80px; border: 1px solid var(--hairline); border-radius: var(--rounded-sm); overflow: hidden; }
   .image-preview img { width: 100%; height: 100%; object-fit: cover; }
   .remove-btn { position: absolute; top: 2px; right: 2px; background: var(--danger); color: #fff; width: 20px; height: 20px; padding: 0; font-size: 12px; line-height: 1; border-radius: 2px; }
-  .upload-btn { width: 40px; padding: 0; }
+  .upload-btn { flex-shrink: 0; align-self: flex-end; padding: 0; }
   .muted { color: var(--mute); font-size: 16px; }
 </style>
