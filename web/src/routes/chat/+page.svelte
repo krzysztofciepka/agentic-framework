@@ -14,7 +14,24 @@
   let input = $state('');
   let sending = $state(false);
 
-  onMount(() => { loadAgents(); });
+  onMount(async () => {
+    await loadAgents();
+    const params = new URLSearchParams(window.location.search);
+    const convId = params.get('conv');
+    if (convId) {
+      try {
+        const full = await getConversation(+convId);
+        if (full && full.messages) {
+          selectedAgent = agents.find(a => a.id === full.agent_id) ?? null;
+          if (selectedAgent) {
+            try { conversations = await getConversations(selectedAgent.id); } catch (_) {}
+          }
+          selectedConv = full;
+          messages = full.messages;
+        }
+      } catch (_) {}
+    }
+  });
 
   async function loadAgents() {
     try { agents = await getAgents(); } catch (e) { console.error(e); }
@@ -33,6 +50,10 @@
     try {
       const full = await getConversation(conv.id);
       selectedConv = full; messages = full.messages ?? [];
+      const url = new URL(window.location.href);
+      url.searchParams.set('conv', String(conv.id));
+      if (selectedAgent) url.searchParams.set('agent', String(selectedAgent.id));
+      window.history.pushState({}, '', url.toString());
     } catch (e) { console.error(e); }
   }
 
