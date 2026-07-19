@@ -79,37 +79,56 @@
     messages = [...messages, assistantMsg];
     let streamed = '';
 
+    const hasTools = selectedAgent && selectedAgent.tools && selectedAgent.tools.length > 0;
+
     try {
-      const res = await fetch('/api/conversations/' + selectedConv.id + '/stream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: 'user', content, images: imgUrls }),
-      });
-      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Stream failed'); }
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error('No reader');
-      const dec = new TextDecoder();
-      let buf = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
-        const lines = buf.split('\n');
-        buf = lines.pop() || '';
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          try {
-            const evt = JSON.parse(line.slice(6));
-            if (evt.type === 'content') streamed += evt.content;
-            else if (evt.type === 'tool_start') streamed += '\n[' + evt.tool + ']\n';
-            else if (evt.type === 'tool_end') streamed += (evt.content || '') + '\n';
-            messages[messages.length - 1] = { ...assistantMsg, content: streamed || '[...]' };
-            messages = messages;
-          } catch (_) {}
+      if (hasTools) {
+        const dots = setInterval(() => {
+          if (!sending) { clearInterval(dots); return; }
+          const d = streamed.length % 4;
+          streamed = '.'.repeat(d);
+          messages[messages.length - 1] = { ...assistantMsg, content: '[thinking' + streamed + ']' };
+          messages = messages;
+        }, 300);
+        try {
+          const response = await sendMessage(selectedConv.id, content, imgUrls);
+          clearInterval(dots);
+          messages[messages.length - 1] = { ...assistantMsg, content: response.content, created_at: new Date().toISOString() };
+        } catch (e) {
+          clearInterval(dots);
+          throw e;
         }
+      } else {
+        const res = await fetch('/api/conversations/' + selectedConv.id + '/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'user', content, images: imgUrls }),
+        });
+        if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Stream failed'); }
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error('No reader');
+        const dec = new TextDecoder();
+        let buf = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          const lines = buf.split('\n');
+          buf = lines.pop() || '';
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+              const evt = JSON.parse(line.slice(6));
+              if (evt.type === 'content') streamed += evt.content;
+              else if (evt.type === 'tool_start') streamed += '\n[' + evt.tool + ']\n';
+              else if (evt.type === 'tool_end') streamed += (evt.content || '') + '\n';
+              messages[messages.length - 1] = { ...assistantMsg, content: streamed || '[...]' };
+              messages = messages;
+            } catch (_) {}
+          }
+        }
+        messages[messages.length - 1] = { ...assistantMsg, content: streamed, created_at: new Date().toISOString() };
       }
-      messages[messages.length - 1] = { ...assistantMsg, content: streamed, created_at: new Date().toISOString() };
-      messages = messages;
       try { conversations = await getConversations(selectedAgent!.id); } catch (_) {}
     } catch (e: any) {
       messages = messages.filter(m => m.id !== assistantMsg.id);
